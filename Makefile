@@ -13,3 +13,12 @@ lint:
 .PHONY: start-snowflake
 start-snowflake:
 	go run cmd/snowflake.go
+
+.PHONY: docker-build
+docker-build:
+	@docker build --no-cache -t snowflake -f build/Dockerfile .
+	docker tag snowflake bymerk/snowflake:latest.PHONY: docker-build
+
+.PHONY: docker-push
+docker-build:
+	docker push bymerk/snowflake:latest
