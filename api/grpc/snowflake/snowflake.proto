@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package snowflake;
+
+option go_package = "github.com/bymerk/snowflake/internal/grpc/gen";
+
+service SnowflakeService {
+  rpc GenerateID (GenerateIDRequest) returns (GenerateIDResponse);
+}
+
+message GenerateIDRequest {}
+
+message GenerateIDResponse {
+  int64 id = 1;
+}
