@@ -7,24 +7,30 @@ import (
 )
 
 const (
-	epoch         = 1609459200000 // 1 Jan 2021 (UTC)
 	timestampBits = 41
-	nodeIDBits    = 10
-	sequenceBits  = 12
+	clusterIDBits = 6  // max 64
+	nodeIDBits    = 4  // max 16
+	sequenceBits  = 12 //  4096
 
-	maxNodeID   = -1 ^ (-1 << nodeIDBits)
-	maxSequence = -1 ^ (-1 << sequenceBits)
+	maxClusterID = -1 ^ (-1 << clusterIDBits) // 63
+	maxNodeID    = -1 ^ (-1 << nodeIDBits)    // 15
+	maxSequence  = -1 ^ (-1 << sequenceBits)  // 4095
 
-	nodeIDShift    = sequenceBits
-	timestampShift = sequenceBits + nodeIDBits
+	timeShift    = clusterIDBits + nodeIDBits + sequenceBits
+	clusterShift = nodeIDBits + sequenceBits
+	nodeShift    = sequenceBits
+
+	defaultEpoch int64 = 1735678800000 // 2025-01-01
 )
 
 type Snowflake struct {
-	mu       sync.Mutex
-	epoch    int64
-	lastTime int64
-	sequence int64
-	nodeID   int64
+	mu sync.Mutex
+
+	epoch         int64
+	lastTimestamp int64
+	sequence      int64
+	clusterID     int64
+	nodeID        int64
 }
 
 type Option func(*Snowflake)
@@ -35,15 +41,20 @@ func WithEpoch(epoch time.Time) Option {
 	}
 }
 
-func NewSnowflake(nodeID int64, opts ...Option) (*Snowflake, error) {
+func NewSnowflake(clusterID, nodeID int64, opts ...Option) (*Snowflake, error) {
+	if clusterID < 0 || clusterID > maxClusterID {
+		return nil, fmt.Errorf("cluster ID must be between 0 and %d", maxClusterID)
+	}
+
 	if nodeID < 0 || nodeID > maxNodeID {
 		return nil, fmt.Errorf("node ID must be between 0 and %d", maxNodeID)
 	}
 
 	sf := &Snowflake{
-		epoch:  epoch,
-		nodeID: nodeID,
-		mu:     sync.Mutex{},
+		mu:        sync.Mutex{},
+		nodeID:    nodeID,
+		clusterID: clusterID,
+		epoch:     defaultEpoch,
 	}
 
 	for _, opt := range opts {
@@ -59,10 +70,10 @@ func (s *Snowflake) Generate() int64 {
 
 	now := time.Now().UnixMilli()
 
-	if now == s.lastTime {
+	if now == s.lastTimestamp {
 		s.sequence = (s.sequence + 1) & maxSequence
 		if s.sequence == 0 {
-			for now <= s.lastTime {
+			for now <= s.lastTimestamp {
 				now = time.Now().UnixMilli()
 			}
 		}
@@ -70,10 +81,11 @@ func (s *Snowflake) Generate() int64 {
 		s.sequence = 0
 	}
 
-	s.lastTime = now
+	s.lastTimestamp = now
 
-	id := ((now - epoch) << timestampShift) |
-		(s.nodeID << nodeIDShift) |
+	id := ((now - s.epoch) << timeShift) |
+		(s.clusterID << clusterShift) |
+		(s.nodeID << nodeShift) |
 		s.sequence
 
 	return id

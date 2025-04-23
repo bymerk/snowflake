@@ -10,6 +10,10 @@ proto:
 lint:
 	golangci-lint run
 
+.PHONY: test
+test:
+	go test -v ./...
+
 .PHONY: start-snowflake
 start-snowflake:
 	go run cmd/snowflake.go
@@ -17,8 +21,8 @@ start-snowflake:
 .PHONY: docker-build
 docker-build:
 	@docker build --no-cache -t snowflake -f build/Dockerfile .
-	docker tag snowflake bymerk/snowflake:latest.PHONY: docker-build
+	docker tag snowflake bymerk/snowflake:latest
 
 .PHONY: docker-push
-docker-build:
+docker-push:
 	docker push bymerk/snowflake:latest
