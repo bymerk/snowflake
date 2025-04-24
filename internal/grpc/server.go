@@ -7,18 +7,35 @@ import (
 
 	"github.com/bymerk/snowflake/internal/grpc/gen"
 	"github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 )
 
 type Server struct {
-	addr    string
-	handler gen.SnowflakeServiceServer
+	server *grpc.Server
+	addr   string
 }
 
-func NewServer(addr string, handler gen.SnowflakeServiceServer) *Server {
+type Config struct {
+	Addr    string
+	Metrics bool
+}
+
+func NewServer(cfg Config, handler gen.SnowflakeServiceServer) *Server {
+	options := []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(grpc_recovery.UnaryServerInterceptor()),
+	}
+
+	if cfg.Metrics {
+		options = append(options, grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
+	}
+
+	grpcServer := grpc.NewServer(options...)
+	gen.RegisterSnowflakeServiceServer(grpcServer, handler)
+
 	return &Server{
-		addr:    addr,
-		handler: handler,
+		server: grpcServer,
+		addr:   cfg.Addr,
 	}
 }
 
@@ -29,20 +46,15 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-
-	grpcServer := grpc.NewServer([]grpc.ServerOption{
-		grpc.ChainUnaryInterceptor(grpc_recovery.UnaryServerInterceptor()),
-	}...)
-	gen.RegisterSnowflakeServiceServer(grpcServer, s.handler)
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
+		if err := s.server.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 		cancel()
 	}()
 
 	<-ctx.Done()
-	grpcServer.GracefulStop()
+	s.server.GracefulStop()
 
 	return nil
 }

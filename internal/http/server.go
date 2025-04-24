@@ -8,38 +8,39 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/bymerk/snowflake/internal/http/middleware"
 	"github.com/bymerk/snowflake/pkg/showflake"
 )
 
 type Server struct {
-	addr string
-	sf   *showflake.Snowflake
+	server *httpStd.Server
 }
 
-func NewServer(addr string, sf *showflake.Snowflake) *Server {
-	return &Server{addr: addr, sf: sf}
+type Config struct {
+	Addr    string
+	Metrics bool
+}
+
+func NewServer(cfg Config, sf *showflake.Snowflake) *Server {
+	var handler httpStd.Handler = getMux(sf)
+
+	if cfg.Metrics {
+		handler = middleware.MetricsMiddleware(handler)
+	}
+
+	srv := &httpStd.Server{
+		Addr:    cfg.Addr,
+		Handler: handler,
+	}
+
+	return &Server{server: srv}
 }
 
 func (s *Server) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 
-	mux := httpStd.NewServeMux()
-
-	mux.HandleFunc("/generate-id", func(writer httpStd.ResponseWriter, request *httpStd.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		writer.WriteHeader(httpStd.StatusOK)
-		_, _ = writer.Write([]byte(`{"id":"`))
-		_, _ = writer.Write([]byte(strconv.FormatInt(s.sf.Generate(), 10)))
-		_, _ = writer.Write([]byte(`"}`))
-	})
-
-	srv := httpStd.Server{
-		Addr:    s.addr,
-		Handler: mux,
-	}
-
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, httpStd.ErrServerClosed) {
+		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, httpStd.ErrServerClosed) {
 			log.Fatalf("failed to serve: %v", err)
 		}
 		cancel()
@@ -48,9 +49,21 @@ func (s *Server) Run(ctx context.Context) error {
 	<-ctx.Done()
 	ctxStop, cancelStop := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancelStop()
-	if err := srv.Shutdown(ctxStop); err != nil {
+	if err := s.server.Shutdown(ctxStop); err != nil {
 		log.Printf("failed to shutdown: %v \n", err)
 	}
 
 	return nil
+}
+
+func getMux(sf *showflake.Snowflake) *httpStd.ServeMux {
+	mux := httpStd.NewServeMux()
+	mux.HandleFunc("/generate-id", func(writer httpStd.ResponseWriter, request *httpStd.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(httpStd.StatusOK)
+		_, _ = writer.Write([]byte(`{"id":"`))
+		_, _ = writer.Write([]byte(strconv.FormatInt(sf.Generate(), 10)))
+		_, _ = writer.Write([]byte(`"}`))
+	})
+	return mux
 }

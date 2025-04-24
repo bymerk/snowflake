@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "snowflake.fullname" . }}
+  labels:
+    {{- include "snowflake.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.ports.http.port }}
+      targetPort: {{ .Values.service.ports.http.targetPort }}
+    - name: grpc
+      port: {{ .Values.service.ports.grpc.port }}
+      targetPort: {{ .Values.service.ports.grpc.targetPort }}
+    - name: metrics
+      port: {{ .Values.service.ports.metrics.port }}
+      targetPort: {{ .Values.service.ports.metrics.targetPort }}
+  selector:
+    {{- include "snowflake.selectorLabels" . | nindent 4 }}

@@ -17,6 +17,10 @@ type Config struct {
 
 }
 
+func (c *Config) MetricsEnabled() bool {
+	return c.MetricsAddr != ""
+}
+
 func LoadConfig() (*Config, error) {
 	config := &Config{
 		HTTPAddr: "0.0.0.0:8080",

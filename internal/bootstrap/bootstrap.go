@@ -7,6 +7,7 @@ import (
 	grpcSF "github.com/bymerk/snowflake/internal/grpc"
 	"github.com/bymerk/snowflake/internal/grpc/handler"
 	"github.com/bymerk/snowflake/internal/http"
+	"github.com/bymerk/snowflake/internal/observability"
 	"github.com/bymerk/snowflake/pkg/showflake"
 	"golang.org/x/sync/errgroup"
 )
@@ -14,8 +15,9 @@ import (
 type App struct {
 	cfg *config.Config
 
-	grpcSF *grpcSF.Server
-	httpSF *http.Server
+	grpcSF     *grpcSF.Server
+	httpSF     *http.Server
+	metricsSrv *observability.Server
 }
 
 func NewApp() (*App, error) {
@@ -35,13 +37,31 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	gsf := grpcSF.NewServer(cfg.GRPCAddr, handler.NewHandler(sf))
-	hsf := http.NewServer(cfg.HTTPAddr, sf)
+	gsf := grpcSF.NewServer(
+		grpcSF.Config{
+			Addr:    cfg.GRPCAddr,
+			Metrics: cfg.MetricsEnabled(),
+		},
+		handler.NewHandler(sf),
+	)
+	hsf := http.NewServer(
+		http.Config{
+			Addr:    cfg.HTTPAddr,
+			Metrics: cfg.MetricsEnabled(),
+		},
+		sf,
+	)
+
+	var metricsSrv *observability.Server
+	if cfg.MetricsEnabled() {
+		metricsSrv = observability.NewServer(cfg.MetricsAddr)
+	}
 
 	return &App{
-		cfg:    cfg,
-		grpcSF: gsf,
-		httpSF: hsf,
+		cfg:        cfg,
+		grpcSF:     gsf,
+		httpSF:     hsf,
+		metricsSrv: metricsSrv,
 	}, nil
 }
 
@@ -54,6 +74,12 @@ func (app *App) Run(ctx context.Context) error {
 	errGroup.Go(func() error {
 		return app.httpSF.Run(ctx)
 	})
+
+	if app.cfg.MetricsAddr != "" {
+		errGroup.Go(func() error {
+			return app.metricsSrv.Run(ctx)
+		})
+	}
 
 	err := errGroup.Wait()
 	if err != nil {

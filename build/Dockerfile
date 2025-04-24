@@ -14,5 +14,6 @@ COPY --from=builder /app/snowflake .
 
 EXPOSE 8080
 EXPOSE 5051
+EXPOSE 9000
 
 CMD ["./snowflake"]

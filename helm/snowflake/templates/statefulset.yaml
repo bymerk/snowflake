@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "snowflake.fullname" . }}
+  labels:
+    app: {{ include "snowflake.name" . }}
+spec:
+  serviceName: {{ include "snowflake.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "snowflake.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "snowflake.name" . }}
+    spec:
+      containers:
+        - name: snowflake
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.ports.http.targetPort }}
+            - name: grpc
+              containerPort: {{ .Values.service.ports.grpc.targetPort }}
+            - name: metrics
+              containerPort: {{ .Values.service.ports.metrics.targetPort }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: {{ .Values.service.ports.metrics.targetPort }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: {{ .Values.service.ports.metrics.targetPort }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+          envFrom:
+            - configMapRef:
+                name: {{ include "snowflake.fullname" . }}-config
+          {{- with .Values.resources }}
+          resources:
+              {{- toYaml . | nindent 12 }}
+          {{- end }}
