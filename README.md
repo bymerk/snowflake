@@ -46,3 +46,12 @@ the Snowflake ID is constructed as:
 
 ```go
 id := ((t - epoch) << 22) | (clusterID << 16) | (nodeID << 12) | sequence
+```
+
+## 📦 Docker Image
+
+The Docker image is available on Docker Hub:
+
+```bash
+docker pull bymerk/snowflake
+
