@@ -48,6 +48,20 @@ the Snowflake ID is constructed as:
 id := ((t - epoch) << 22) | (clusterID << 16) | (nodeID << 12) | sequence
 ```
 
+## Configuration
+
+The following environment variables are used to configure the application.
+
+| Variable        | Default        | Description                               |
+|-----------------|----------------|-------------------------------------------|
+| `HTTP_ADDR`     | `0.0.0.0:8080` | Address for the HTTP server               |
+| `GRPC_ADDR`     | `0.0.0.0:5051` | Address for the gRPC server               |
+| `CLUSTER_ID`    | 0              | Numeric cluster ID (required)             |
+| `NODE_ID`       | 0              | Numeric node ID (required)                |
+| `EPOCH`         | —              | Start time in milliseconds (Unix epoch)   |
+| `METRICS_ADDR`  | —              | Optional address for Prometheus metrics   |
+
+
 ## 📦 Docker Image
 
 The Docker image is available on Docker Hub:
